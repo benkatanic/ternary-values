@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Ternary Values Survey</title>
+  <title>Ternary Values Survey – Equality, Innovation, Ethics</title>
   <style>
     :root { --bg:#0b1020; --card:#121832; --ink:#eaf0ff; --muted:#a9b4d0; --accent:#7aa2ff; --ok:#41c982; }
     body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial; color:var(--ink); background:linear-gradient(180deg,#0a0f20,#050713 80%); }
@@ -43,7 +43,6 @@
         <li><strong>Drag</strong> the dot or <strong>click</strong> inside the triangle.</li>
         <li>Enter your <strong>UCD email</strong> (one submission per email).</li>
       </ul>
-      <p class="tiny muted">Tip: If you’re unsure, just click roughly where you feel is right—the numbers update live.</p>
     </div>
 
     <!-- PRESENT -->
@@ -52,13 +51,13 @@
       <div id="present" class="tri">
         <canvas id="canvas-present"></canvas>
         <div class="hud">
-          <div class="labels"><span class="label" id="la">Economic Prosperity</span><span class="label" id="lb">Care for Others</span></div>
+          <div class="labels"><span class="label" id="la">Equality</span><span class="label" id="lb">Innovation</span></div>
           <div class="vals">
-            <span id="pa">E: <b>34</b>%</span>
-            <span id="pb">C: <b>33</b>%</span>
-            <span id="pc">Env: <b>33</b>%</span>
+            <span id="pa">Eq: <b>34</b>%</span>
+            <span id="pb">Inn: <b>33</b>%</span>
+            <span id="pc">Eth: <b>33</b>%</span>
           </div>
-          <div class="labels" style="justify-content:center"><span class="label" id="lc">Care for the Environment</span></div>
+          <div class="labels" style="justify-content:center"><span class="label" id="lc">Ethics</span></div>
         </div>
       </div>
     </div>
@@ -69,13 +68,13 @@
       <div id="future" class="tri">
         <canvas id="canvas-future"></canvas>
         <div class="hud">
-          <div class="labels"><span class="label">Economic Prosperity</span><span class="label">Care for Others</span></div>
+          <div class="labels"><span class="label">Equality</span><span class="label">Innovation</span></div>
           <div class="vals">
-            <span id="fa">E: <b>34</b>%</span>
-            <span id="fb">C: <b>33</b>%</span>
-            <span id="fc">Env: <b>33</b>%</span>
+            <span id="fa">Eq: <b>34</b>%</span>
+            <span id="fb">Inn: <b>33</b>%</span>
+            <span id="fc">Eth: <b>33</b>%</span>
           </div>
-          <div class="labels" style="justify-content:center"><span class="label">Care for the Environment</span></div>
+          <div class="labels" style="justify-content:center"><span class="label">Ethics</span></div>
         </div>
       </div>
     </div>
@@ -90,209 +89,58 @@
           <button id="submit" class="primary">Submit once</button>
           <span id="status" class="tiny"></span>
         </div>
-        <small class="tiny muted">We only store your email to prevent duplicate submissions. Aggregated results will be anonymised in the report.</small>
       </div>
-    </div>
-
-    <div class="card">
-      <h2>About</h2>
-      <p class="tiny">This site collects a single response per email. Values: Economic Prosperity vs Care for Others vs Care for the Environment. Built for a Digital Society project.</p>
     </div>
   </div>
 
 <script>
-/** ======= QUICK SETTINGS (edit these labels if you want different values) ======= */
+/** ======= QUICK SETTINGS ======= */
 const VALUE_A = "Equality";
 const VALUE_B = "Innovation";
 const VALUE_C = "Ethics";
 /** ======= END SETTINGS ======= */
+const ENDPOINT = "https://script.google.com/macros/s/AKfycbwIxoLmOuRI6oYsa4t96uU23lgn94El2KR01spjlB0CYoWPnOFJaNMADK-x61fJk6Nu/exec";
 
-// Replace with your deployed Apps Script Web App URL
-const ENDPOINT = "https://script.google.com/a/macros/ucdconnect.ie/s/AKfycbw3kj-t_rr_iNPGHYWtG1lqbzl3lnEJwCQJ7Lh91MGjhtm11iGlmwslv9p390-yDs6vuQ/exec";
-
+/* --- tiny ternary plot engine --- */
 class Ternary {
-  constructor(rootId, labels, readoutIds) {
+  constructor(rootId, readoutIds) {
     this.root = document.getElementById(rootId);
     this.canvas = this.root.querySelector('canvas');
     this.ctx = this.canvas.getContext('2d');
-    this.labels = labels;
     this.readout = readoutIds.map(id => document.getElementById(id));
-    this.dot = { x: 0.5, y: 0.5 }; // normalized
+    this.weights = [0.34,0.33,0.33];
     this.resizeObserver = new ResizeObserver(() => this.fit());
     this.resizeObserver.observe(this.root);
-    this.register();
-    setTimeout(()=>this.fit(), 0);
+    this.canvas.addEventListener('pointerdown', e=>this.drag(e));
+    this.canvas.addEventListener('pointermove', e=>{ if(e.buttons===1) this.drag(e); });
+    this.canvas.addEventListener('click', e=>this.drag(e));
+    setTimeout(()=>this.fit(),0);
   }
-  fit(){
-    const r = this.root.getBoundingClientRect();
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
-    this.canvas.width = Math.floor(r.width * dpr);
-    this.canvas.height = Math.floor(r.height * dpr);
-    this.ctx.setTransform(dpr,0,0,dpr,0,0);
-    this.draw();
-  }
-  register(){
-    const getPos = (evt) => {
-      const rect = this.canvas.getBoundingClientRect();
-      const x = (evt.touches?evt.touches[0].clientX:evt.clientX) - rect.left;
-      const y = (evt.touches?evt.touches[0].clientY:evt.clientY) - rect.top;
-      return {x, y};
-    };
-    const drag = (evt)=>{
-      evt.preventDefault();
-      const p = getPos(evt);
-      this.placeFromPixel(p.x, p.y);
-    };
-    this.canvas.addEventListener('pointerdown', drag);
-    this.canvas.addEventListener('pointermove', (e)=>{ if(e.buttons===1) drag(e); });
-    this.canvas.addEventListener('click', drag);
-    this.canvas.addEventListener('touchstart', drag, {passive:false});
-    this.canvas.addEventListener('touchmove', drag, {passive:false});
-  }
-  // Geometry: equilateral triangle with vertices A(left), B(right), C(bottom middle)
-  getGeom(){
-    const w = this.canvas.clientWidth;
-    const h = this.canvas.clientHeight;
-    const pad = 18;
-    const side = Math.min(w-2*pad, h-2*pad);
-    const cx = w/2, top = (h - side)/2 + 8;
-    const htri = side*Math.sqrt(3)/2;
-    const A = {x: cx - side/2, y: top + htri};
-    const B = {x: cx + side/2, y: top + htri};
-    const C = {x: cx, y: top};
-    return {A,B,C, w, h};
-  }
-  draw(){
-    const {A,B,C,w,h} = this.getGeom();
-    const ctx = this.ctx;
-    // background
-    const grd = ctx.createLinearGradient(0,0,0,h);
-    grd.addColorStop(0,'#0d1330'); grd.addColorStop(1,'#0b0f29');
-    ctx.fillStyle = grd; ctx.fillRect(0,0,w,h);
-
-    // triangle
-    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.lineTo(C.x,C.y); ctx.closePath();
-    ctx.fillStyle = '#0e1638'; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = '#253066'; ctx.stroke();
-
-    // grid (ternary tick lines)
-    ctx.globalAlpha = 0.45; ctx.lineWidth = 0.6;
-    const ticks = 5;
-    for(let i=1;i<ticks;i++){
-      const t = i/ticks;
-      // lines parallel to AB (varying C)
-      this.lineLerp(ctx, this.lerp(A,C,t), this.lerp(B,C,t));
-      // lines parallel to AC (varying B)
-      this.lineLerp(ctx, this.lerp(B,A,t), this.lerp(C,A,t));
-      // lines parallel to BC (varying A)
-      this.lineLerp(ctx, this.lerp(A,B,t), this.lerp(C,B,t));
-    }
-    ctx.globalAlpha = 1;
-
-    // dot
-    const P = this.baryToXY(this.weights);
-    ctx.shadowColor = 'rgba(64,128,255,.6)'; ctx.shadowBlur = 14;
-    ctx.fillStyle = '#7aa2ff'; ctx.beginPath(); ctx.arc(P.x, P.y, 7, 0, Math.PI*2); ctx.fill();
-    ctx.shadowBlur = 0;
-
-    // readouts
-    const [a,b,c] = this.weights.map(v => Math.round(v*100));
-    this.readout[0].innerHTML = `${this.labels[0][0]}: <b>${a}</b>%`;
-    this.readout[1].innerHTML = `${this.labels[1][0]}: <b>${b}</b>%`;
-    this.readout[2].innerHTML = `${this.labels[2][0]}: <b>${c}</b>%`;
-  }
-  lineLerp(ctx, P, Q){ ctx.beginPath(); ctx.moveTo(P.x,P.y); ctx.lineTo(Q.x,Q.y); ctx.strokeStyle='#253066'; ctx.stroke(); }
-  lerp(P,Q,t){ return {x: P.x+(Q.x-P.x)*t, y: P.y+(Q.y-P.y)*t}; }
-  clampTriangle(x,y){
-    // project to triangle if outside using barycentric clamp
-    const {A,B,C} = this.getGeom();
-    const v0 = {x:B.x-A.x, y:B.y-A.y};
-    const v1 = {x:C.x-A.x, y:C.y-A.y};
-    const v2 = {x:x-A.x, y:y-A.y};
-    const d00 = v0.x*v0.x + v0.y*v0.y;
-    const d01 = v0.x*v1.x + v0.y*v1.y;
-    const d11 = v1.x*v1.x + v1.y*v1.y;
-    const d20 = v2.x*v0.x + v2.y*v0.y;
-    const d21 = v2.x*v1.x + v2.y*v1.y;
-    let denom = d00*d11 - d01*d01;
-    let v = (d11*d20 - d01*d21) / denom;
-    let w = (d00*d21 - d01*d20) / denom;
-    let u = 1 - v - w;
-    // clamp
-    u = Math.max(0, Math.min(1, u));
-    v = Math.max(0, Math.min(1, v));
-    w = Math.max(0, Math.min(1, w));
-    // renormalize if needed
-    const s = u+v+w || 1;
-    return [u/s, v/s, w/s];
-  }
-  baryToXY([u,v,w]){
-    const {A,B,C} = this.getGeom();
-    return { x: u*A.x + v*B.x + w*C.x, y: u*A.y + v*B.y + w*C.y };
-  }
-  placeFromPixel(px,py){
-    const [u,v,w] = this.clampTriangle(px,py);
-    this.weights = [u,v,w];
-    this.draw();
-  }
-  get weights(){
-    if(!this._w) this._w = [0.34,0.33,0.33];
-    return this._w;
-  }
-  set weights(v){ this._w = v; }
-  reset(){ this.weights = [0.34,0.33,0.33]; this.draw(); }
-  get percents(){ return this.weights.map(x=>Math.round(x*100)); }
+  geom(){const r=this.root.getBoundingClientRect(),pad=20,s=Math.min(r.width-2*pad,r.height-2*pad),cx=r.width/2,top=(r.height-s)/2,h=s*Math.sqrt(3)/2;return{A:{x:cx-s/2,y:top+h},B:{x:cx+s/2,y:top+h},C:{x:cx,y:top}};}
+  fit(){const dpr=window.devicePixelRatio||1,r=this.root.getBoundingClientRect();this.canvas.width=r.width*dpr;this.canvas.height=r.height*dpr;this.ctx.setTransform(dpr,0,0,dpr,0,0);this.draw();}
+  draw(){const{A,B,C}=this.geom(),ctx=this.ctx;ctx.clearRect(0,0,this.canvas.width,this.canvas.height);ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.lineTo(C.x,C.y);ctx.closePath();ctx.fillStyle='#0e1638';ctx.fill();ctx.strokeStyle='#253066';ctx.stroke();const P=this.baryToXY(this.weights);ctx.fillStyle='#7aa2ff';ctx.beginPath();ctx.arc(P.x,P.y,7,0,Math.PI*2);ctx.fill();const[a,b,c]=this.weights.map(v=>Math.round(v*100));this.readout[0].innerHTML=`Eq: <b>${a}</b>%`;this.readout[1].innerHTML=`Inn: <b>${b}</b>%`;this.readout[2].innerHTML=`Eth: <b>${c}</b>%`;}
+  baryToXY([u,v,w]){const{A,B,C}=this.geom();return{x:u*A.x+v*B.x+w*C.x,y:u*A.y+v*B.y+w*C.y};}
+  clamp(px,py){const{A,B,C}=this.geom(),v0={x:B.x-A.x,y:B.y-A.y},v1={x:C.x-A.x,y:C.y-A.y},v2={x:px-A.x,y:py-A.y},d00=v0.x*v0.x+v0.y*v0.y,d01=v0.x*v1.x+v0.y*v1.y,d11=v1.x*v1.x+v1.y*v1.y,d20=v2.x*v0.x+v2.y*v0.y,d21=v2.x*v1.x+v2.y*v1.y,den=d00*d11-d01*d01,v=(d11*d20-d01*d21)/den,w=(d00*d21-d01*d20)/den,u=1-v-w,s=u+v+w||1;return[Math.max(0,u)/s,Math.max(0,v)/s,Math.max(0,w)/s];}
+  drag(e){const r=this.canvas.getBoundingClientRect();const[x,y]=[e.clientX-r.left,e.clientY-r.top];this.weights=this.clamp(x,y);this.draw();}
+  get percents(){return this.weights.map(v=>Math.round(v*100));}
+  reset(){this.weights=[0.34,0.33,0.33];this.draw();}
 }
+const p=new Ternary("present",["pa","pb","pc"]);
+const f=new Ternary("future",["fa","fb","fc"]);
 
-const ternPresent = new Ternary("present",
-  [[VALUE_A, "pa"], [VALUE_B, "pb"], [VALUE_C, "pc"]],
-  ["pa","pb","pc"]
-);
-const ternFuture = new Ternary("future",
-  [[VALUE_A, "fa"], [VALUE_B, "fb"], [VALUE_C, "fc"]],
-  ["fa","fb","fc"]
-);
-
-// set labels text (top panel)
-document.getElementById('la').textContent = VALUE_A;
-document.getElementById('lb').textContent = VALUE_B;
-document.getElementById('lc').textContent = VALUE_C;
-
-document.getElementById('reset').addEventListener('click', ()=>{
-  ternPresent.reset(); ternFuture.reset();
-  document.getElementById('status').textContent = '';
-});
-
-async function submitOnce(){
-  const email = (document.getElementById('email').value || '').trim();
-  const status = document.getElementById('status');
-  if(!email || !/@/.test(email)){ status.innerHTML = '<span class="err">Enter a valid email.</span>'; return; }
-
-  const [pe, pc, penv] = ternPresent.percents; // A,B,C
-  const [fe, fc, fenv] = ternFuture.percents;
-
-  status.textContent = 'Submitting...';
+document.getElementById("reset").onclick=()=>{p.reset();f.reset();document.getElementById("status").textContent="";};
+document.getElementById("submit").onclick=async()=>{
+  const email=document.getElementById("email").value.trim();
+  const status=document.getElementById("status");
+  if(!/@/.test(email)){status.innerHTML='<span class="err">Enter a valid email.</span>';return;}
+  status.textContent="Submitting...";
   try{
-    const res = await fetch(ENDPOINT, {
-      method:'POST',
-      mode:'cors',
-      headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({
-        email,
-        present: { e: pe, c: pc, env: penv },
-        future:  { e: fe, c: fc, env: fenv }
-      })
-    });
-    const data = await res.json();
-    if(res.ok){
-      status.innerHTML = '<span class="ok">Saved. Thanks! You can close this tab.</span>';
-    } else {
-      status.innerHTML = `<span class="err">${data.error || 'Error saving.'}</span>`;
-    }
-  } catch(err){
-    status.innerHTML = `<span class="err">${err.message}</span>`;
-  }
-}
-document.getElementById('submit').addEventListener('click', submitOnce);
+    const body={email,present:{e:p.percents[0],c:p.percents[1],env:p.percents[2]},future:{e:f.percents[0],c:f.percents[1],env:f.percents[2]}};
+    const res=await fetch(ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const data=await res.json();
+    if(res.ok){status.innerHTML='<span class="ok">Saved. Thanks!</span>';}else{status.innerHTML='<span class="err">'+(data.error||"Error")+'</span>';}
+  }catch(err){status.innerHTML='<span class="err">'+err.message+'</span>';}
+};
 </script>
 </body>
 </html>
