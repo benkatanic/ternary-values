@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Ternary Values Survey</title>
+  <style>
+    :root { --bg:#0b1020; --card:#121832; --ink:#eaf0ff; --muted:#a9b4d0; --accent:#7aa2ff; --ok:#41c982; }
+    body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial; color:var(--ink); background:linear-gradient(180deg,#0a0f20,#050713 80%); }
+    .wrap { max-width:960px; margin:32px auto; padding:0 16px; }
+    .card { background:linear-gradient(180deg,#151b36,#0f1430); border:1px solid #20274a; border-radius:20px; padding:20px; box-shadow:0 10px 40px rgba(0,0,0,.35); }
+    h1,h2 { margin:0 0 6px 0; }
+    h1 { font-size:28px; letter-spacing:.3px; }
+    h2 { font-size:20px; color:var(--ink); opacity:.95; margin-top:16px; }
+    p,li,small { color:var(--muted); }
+    .row { display:grid; grid-template-columns:1fr; gap:16px; }
+    @media(min-width:900px){ .row{ grid-template-columns:1fr 1fr; } }
+    .tri { position:relative; aspect-ratio:1.05/1; background:radial-gradient(ellipse at top,#18224a 0%,#0e1330 60%); border-radius:16px; border:1px solid #243062; }
+    .hud { position:absolute; inset:10px; display:flex; flex-direction:column; justify-content:space-between; pointer-events:none; }
+    .labels { display:flex; justify-content:space-between; font-weight:600; }
+    .label { color:#dfe6ff; text-shadow:0 2px 12px rgba(0,0,0,.6); }
+    .vals { display:flex; gap:10px; flex-wrap:wrap; font-feature-settings:"tnum" 1; }
+    .vals span { background:#0f1636; border:1px solid #22306a; border-radius:999px; padding:6px 10px; }
+    canvas { width:100%; height:100%; display:block; border-radius:16px; }
+    .footer { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    input,button { font:inherit; border-radius:12px; border:1px solid #33407a; background:#0e1433; color:var(--ink); padding:10px 12px; }
+    input::placeholder{ color:#7d89b3; }
+    button { cursor:pointer; background:linear-gradient(180deg,#26347a,#1a265e); border-color:#2e3c84; font-weight:700; }
+    button.primary { background:linear-gradient(180deg,#4b7bff,#3d69e8); border-color:#5581ff; }
+    .ok { color:var(--ok); font-weight:600; }
+    .err { color:#ff6b7a; font-weight:600; }
+    .tiny { font-size:12px; opacity:.9; }
+    .muted { color:var(--muted); }
+    .grid { display:grid; gap:16px; }
+  </style>
+</head>
+<body>
+  <div class="wrap grid">
+    <div class="card">
+      <h1>How should society balance these values?</h1>
+      <p>Place one dot on each triangle to show the relative importance society gives these three values <em>now</em> and what you think it will value in <strong>2075</strong>. The three percentages always add to 100.</p>
+      <ul>
+        <li><strong>Drag</strong> the dot or <strong>click</strong> inside the triangle.</li>
+        <li>Enter your <strong>UCD email</strong> (one submission per email).</li>
+      </ul>
+      <p class="tiny muted">Tip: If you’re unsure, just click roughly where you feel is right—the numbers update live.</p>
+    </div>
+
+    <!-- PRESENT -->
+    <div class="card">
+      <h2>Present (2025)</h2>
+      <div id="present" class="tri">
+        <canvas id="canvas-present"></canvas>
+        <div class="hud">
+          <div class="labels"><span class="label" id="la">Economic Prosperity</span><span class="label" id="lb">Care for Others</span></div>
+          <div class="vals">
+            <span id="pa">E: <b>34</b>%</span>
+            <span id="pb">C: <b>33</b>%</span>
+            <span id="pc">Env: <b>33</b>%</span>
+          </div>
+          <div class="labels" style="justify-content:center"><span class="label" id="lc">Care for the Environment</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FUTURE -->
+    <div class="card">
+      <h2>Year 2075</h2>
+      <div id="future" class="tri">
+        <canvas id="canvas-future"></canvas>
+        <div class="hud">
+          <div class="labels"><span class="label">Economic Prosperity</span><span class="label">Care for Others</span></div>
+          <div class="vals">
+            <span id="fa">E: <b>34</b>%</span>
+            <span id="fb">C: <b>33</b>%</span>
+            <span id="fc">Env: <b>33</b>%</span>
+          </div>
+          <div class="labels" style="justify-content:center"><span class="label">Care for the Environment</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FORM -->
+    <div class="card">
+      <h2>Submit</h2>
+      <div class="grid">
+        <label>Email (UCD): <br/><input type="email" id="email" placeholder="firstname.lastname@ucd.ie" required/></label>
+        <div class="footer">
+          <button id="reset">Reset dots</button>
+          <button id="submit" class="primary">Submit once</button>
+          <span id="status" class="tiny"></span>
+        </div>
+        <small class="tiny muted">We only store your email to prevent duplicate submissions. Aggregated results will be anonymised in the report.</small>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>About</h2>
+      <p class="tiny">This site collects a single response per email. Values: Economic Prosperity vs Care for Others vs Care for the Environment. Built for a Digital Society project.</p>
+    </div>
+  </div>
+
+<script>
+/** ======= QUICK SETTINGS (edit these labels if you want different values) ======= */
+const VALUE_A = "Economic Prosperity";
+const VALUE_B = "Care for Others";
+const VALUE_C = "Care for the Environment";
+/** ======= END SETTINGS ======= */
+
+// Replace with your deployed Apps Script Web App URL
+const ENDPOINT = "YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+
+class Ternary {
+  constructor(rootId, labels, readoutIds) {
+    this.root = document.getElementById(rootId);
+    this.canvas = this.root.querySelector('canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.labels = labels;
+    this.readout = readoutIds.map(id => document.getElementById(id));
+    this.dot = { x: 0.5, y: 0.5 }; // normalized
+    this.resizeObserver = new ResizeObserver(() => this.fit());
+    this.resizeObserver.observe(this.root);
+    this.register();
+    setTimeout(()=>this.fit(), 0);
+  }
+  fit(){
+    const r = this.root.getBoundingClientRect();
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    this.canvas.width = Math.floor(r.width * dpr);
+    this.canvas.height = Math.floor(r.height * dpr);
+    this.ctx.setTransform(dpr,0,0,dpr,0,0);
+    this.draw();
+  }
+  register(){
+    const getPos = (evt) => {
+      const rect = this.canvas.getBoundingClientRect();
+      const x = (evt.touches?evt.touches[0].clientX:evt.clientX) - rect.left;
+      const y = (evt.touches?evt.touches[0].clientY:evt.clientY) - rect.top;
+      return {x, y};
+    };
+    const drag = (evt)=>{
+      evt.preventDefault();
+      const p = getPos(evt);
+      this.placeFromPixel(p.x, p.y);
+    };
+    this.canvas.addEventListener('pointerdown', drag);
+    this.canvas.addEventListener('pointermove', (e)=>{ if(e.buttons===1) drag(e); });
+    this.canvas.addEventListener('click', drag);
+    this.canvas.addEventListener('touchstart', drag, {passive:false});
+    this.canvas.addEventListener('touchmove', drag, {passive:false});
+  }
+  // Geometry: equilateral triangle with vertices A(left), B(right), C(bottom middle)
+  getGeom(){
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+    const pad = 18;
+    const side = Math.min(w-2*pad, h-2*pad);
+    const cx = w/2, top = (h - side)/2 + 8;
+    const htri = side*Math.sqrt(3)/2;
+    const A = {x: cx - side/2, y: top + htri};
+    const B = {x: cx + side/2, y: top + htri};
+    const C = {x: cx, y: top};
+    return {A,B,C, w, h};
+  }
+  draw(){
+    const {A,B,C,w,h} = this.getGeom();
+    const ctx = this.ctx;
+    // background
+    const grd = ctx.createLinearGradient(0,0,0,h);
+    grd.addColorStop(0,'#0d1330'); grd.addColorStop(1,'#0b0f29');
+    ctx.fillStyle = grd; ctx.fillRect(0,0,w,h);
+
+    // triangle
+    ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.lineTo(C.x,C.y); ctx.closePath();
+    ctx.fillStyle = '#0e1638'; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = '#253066'; ctx.stroke();
+
+    // grid (ternary tick lines)
+    ctx.globalAlpha = 0.45; ctx.lineWidth = 0.6;
+    const ticks = 5;
+    for(let i=1;i<ticks;i++){
+      const t = i/ticks;
+      // lines parallel to AB (varying C)
+      this.lineLerp(ctx, this.lerp(A,C,t), this.lerp(B,C,t));
+      // lines parallel to AC (varying B)
+      this.lineLerp(ctx, this.lerp(B,A,t), this.lerp(C,A,t));
+      // lines parallel to BC (varying A)
+      this.lineLerp(ctx, this.lerp(A,B,t), this.lerp(C,B,t));
+    }
+    ctx.globalAlpha = 1;
+
+    // dot
+    const P = this.baryToXY(this.weights);
+    ctx.shadowColor = 'rgba(64,128,255,.6)'; ctx.shadowBlur = 14;
+    ctx.fillStyle = '#7aa2ff'; ctx.beginPath(); ctx.arc(P.x, P.y, 7, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // readouts
+    const [a,b,c] = this.weights.map(v => Math.round(v*100));
+    this.readout[0].innerHTML = `${this.labels[0][0]}: <b>${a}</b>%`;
+    this.readout[1].innerHTML = `${this.labels[1][0]}: <b>${b}</b>%`;
+    this.readout[2].innerHTML = `${this.labels[2][0]}: <b>${c}</b>%`;
+  }
+  lineLerp(ctx, P, Q){ ctx.beginPath(); ctx.moveTo(P.x,P.y); ctx.lineTo(Q.x,Q.y); ctx.strokeStyle='#253066'; ctx.stroke(); }
+  lerp(P,Q,t){ return {x: P.x+(Q.x-P.x)*t, y: P.y+(Q.y-P.y)*t}; }
+  clampTriangle(x,y){
+    // project to triangle if outside using barycentric clamp
+    const {A,B,C} = this.getGeom();
+    const v0 = {x:B.x-A.x, y:B.y-A.y};
+    const v1 = {x:C.x-A.x, y:C.y-A.y};
+    const v2 = {x:x-A.x, y:y-A.y};
+    const d00 = v0.x*v0.x + v0.y*v0.y;
+    const d01 = v0.x*v1.x + v0.y*v1.y;
+    const d11 = v1.x*v1.x + v1.y*v1.y;
+    const d20 = v2.x*v0.x + v2.y*v0.y;
+    const d21 = v2.x*v1.x + v2.y*v1.y;
+    let denom = d00*d11 - d01*d01;
+    let v = (d11*d20 - d01*d21) / denom;
+    let w = (d00*d21 - d01*d20) / denom;
+    let u = 1 - v - w;
+    // clamp
+    u = Math.max(0, Math.min(1, u));
+    v = Math.max(0, Math.min(1, v));
+    w = Math.max(0, Math.min(1, w));
+    // renormalize if needed
+    const s = u+v+w || 1;
+    return [u/s, v/s, w/s];
+  }
+  baryToXY([u,v,w]){
+    const {A,B,C} = this.getGeom();
+    return { x: u*A.x + v*B.x + w*C.x, y: u*A.y + v*B.y + w*C.y };
+  }
+  placeFromPixel(px,py){
+    const [u,v,w] = this.clampTriangle(px,py);
+    this.weights = [u,v,w];
+    this.draw();
+  }
+  get weights(){
+    if(!this._w) this._w = [0.34,0.33,0.33];
+    return this._w;
+  }
+  set weights(v){ this._w = v; }
+  reset(){ this.weights = [0.34,0.33,0.33]; this.draw(); }
+  get percents(){ return this.weights.map(x=>Math.round(x*100)); }
+}
+
+const ternPresent = new Ternary("present",
+  [[VALUE_A, "pa"], [VALUE_B, "pb"], [VALUE_C, "pc"]],
+  ["pa","pb","pc"]
+);
+const ternFuture = new Ternary("future",
+  [[VALUE_A, "fa"], [VALUE_B, "fb"], [VALUE_C, "fc"]],
+  ["fa","fb","fc"]
+);
+
+// set labels text (top panel)
+document.getElementById('la').textContent = VALUE_A;
+document.getElementById('lb').textContent = VALUE_B;
+document.getElementById('lc').textContent = VALUE_C;
+
+document.getElementById('reset').addEventListener('click', ()=>{
+  ternPresent.reset(); ternFuture.reset();
+  document.getElementById('status').textContent = '';
+});
+
+async function submitOnce(){
+  const email = (document.getElementById('email').value || '').trim();
+  const status = document.getElementById('status');
+  if(!email || !/@/.test(email)){ status.innerHTML = '<span class="err">Enter a valid email.</span>'; return; }
+
+  const [pe, pc, penv] = ternPresent.percents; // A,B,C
+  const [fe, fc, fenv] = ternFuture.percents;
+
+  status.textContent = 'Submitting...';
+  try{
+    const res = await fetch(ENDPOINT, {
+      method:'POST',
+      mode:'cors',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        email,
+        present: { e: pe, c: pc, env: penv },
+        future:  { e: fe, c: fc, env: fenv }
+      })
+    });
+    const data = await res.json();
+    if(res.ok){
+      status.innerHTML = '<span class="ok">Saved. Thanks! You can close this tab.</span>';
+    } else {
+      status.innerHTML = `<span class="err">${data.error || 'Error saving.'}</span>`;
+    }
+  } catch(err){
+    status.innerHTML = `<span class="err">${err.message}</span>`;
+  }
+}
+document.getElementById('submit').addEventListener('click', submitOnce);
+</script>
+</body>
+</html>
